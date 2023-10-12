@@ -116,13 +116,3 @@ if __name__ == "__main__":
         env.draw()
 
     pygame.quit()
-
-"""
-echo "# Path_Planning" >> README.md
-git init
-git add README.md
-git commit -m "first commit"
-git branch -M master
-git remote add origin git@github.com:MitchellTurton/Path_Planning.git
-git push -u origin master
-"""
