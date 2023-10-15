@@ -23,6 +23,7 @@ EVALUATED = 2
 START = 3
 GOAL = 4
 
+
 # Dictionaries mapping grid type to color
 color_dict = {OPEN_SPACE: WHITE,
               OBSTACLE: BLACK,
@@ -64,31 +65,34 @@ class BasicGridEnv():
         self.editor_square_type = OBSTACLE
 
         self.grid = self.generate_random_grid()
+        self.overlay_grid = None
 
         self.screen = pygame.display.set_mode(
             (self.win_width, self.win_height))
         pygame.display.set_caption(win_title)
         self.clock = pygame.time.Clock()
 
-    def draw(self, overlay_grid: np.array = None):
+    def draw(self):
         """
         Visualizes a representation of the grid environment
         """
 
-        if overlay_grid is not None:
-            display_grid = self.grid
+        display_grid = self.grid
 
-            for i in range(overlay_grid.shape[0]):
-                for j in range(overlay_grid.shape[1]):
-                    if overlay_grid[i][j] == 1 and self.grid[i][j] != OBSTACLE:
+        if self.overlay_grid is not None:
+            for i in range(self.overlay_grid.shape[0]):
+                for j in range(self.overlay_grid.shape[1]):
+                    if self.overlay_grid[i][j] == 1 and self.grid[i][j] != OBSTACLE:
                         display_grid[i][j] = SEARCHED
-                    if overlay_grid[i][j] == -1 and self.grid[i][j] != OBSTACLE:
+                    if self.overlay_grid[i][j] == -1 and self.grid[i][j] != OBSTACLE:
                         display_grid[i][j] = EVALUATED
+                    if self.overlay_grid[i][j] == 4 and self.grid[i][j] != OBSTACLE:
+                        display_grid[i][j] = START
 
         self.screen.fill(WHITE)
-        for i in range(self.grid.shape[0]):
-            for j in range(self.grid.shape[1]):
-                color = color_dict[self.grid[i][j]]
+        for i in range(display_grid.shape[0]):
+            for j in range(display_grid.shape[1]):
+                color = color_dict[display_grid[i][j]]
 
                 pygame.draw.rect(self.screen, color,
                                  (i * self.square_height, j * self.square_width,
@@ -100,7 +104,7 @@ class BasicGridEnv():
 
         pygame.display.flip()
 
-        self.clock.tick(60)
+        self.clock.tick(100)
 
     def mouse_handler(self):
         """
@@ -135,11 +139,12 @@ class BasicGridEnv():
 
 
 if __name__ == "__main__":
-    env = BasicGridEnv("Basic Grid", 800, 800, 25, 25, 0.15)
+    env = BasicGridEnv("Basic Grid", 800, 800, 25, 25, 0.25)
     a_star = AStar(env.grid)
 
     mouse_down = False
     run = True
+    run_a_star = False
     while run:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -165,13 +170,20 @@ if __name__ == "__main__":
                     env.editor_square_type = GOAL
                 if keys[pygame.K_0]:
                     env.editor_square_type = OPEN_SPACE
-                # if keys[pygame.K_TAB]:
-
+                if keys[pygame.K_TAB]:
+                    run_a_star = True
                 if keys[pygame.K_r]:
                     env.generate_random_grid()
 
         if mouse_down:
             env.mouse_handler()
+
+        if run_a_star:
+            if np.any(a_star.open_close_map):
+                step_grid = a_star.step()
+                # print(step_grid)
+                # print("\n\n")
+                env.overlay_grid = step_grid
 
         env.draw()
 

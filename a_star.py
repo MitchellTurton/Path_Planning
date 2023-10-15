@@ -2,10 +2,7 @@
 import numpy as np
 import math
 from typing import List, Tuple
-from environment import *
-
-# Constants
-MAX_FLOAT32 = np.finfo(np.float32).max
+import time
 
 
 # Heuristic Functions
@@ -18,65 +15,112 @@ class AStar():
     def __init__(self, env_grid: np.array, heuristic_func=h_dist) -> None:
         self.env_grid: np.array = env_grid
 
-        self.heuristic_func: function = heuristic_func
+        self.h_func: function = heuristic_func
 
+        self.update_grid()
+
+        self.open_close_map = np.full(self.env_grid.shape, np.NaN)
+        self.open_close_map[self.start_point[0]][self.start_point[1]] = 1
+        self.came_from = np.full(self.env_grid.shape, np.NaN, dtype=np.int32)
+
+        self.g_score = np.full(self.env_grid.shape, np.inf)
+        self.g_score[self.start_point[0]][self.start_point[1]] = 0
+
+        self.f_score = np.full(self.env_grid.shape, np.inf)
+        self.f_score[self.start_point[0]][self.start_point[1]] = self.h_func(
+            self.start_point, self.end_point)
+
+    def update_grid(self):
         self.start_point: Tuple[int] = None
         self.end_point: Tuple[int] = None
+
+        print(self.env_grid)
 
         for row in range(self.env_grid.shape[0]):
             for col in range(self.env_grid.shape[1]):
                 if self.env_grid[row][col] == 3:
+                    print('new start')
                     self.start_point = (row, col)
                 elif self.env_grid[row][col] == 4:
+                    print('new end')
                     self.end_point = (row, col)
 
-                if self.start_point and self.end_point:
+                if self.start_point is not None and self.end_point is not None:
                     break
-            if self.start_point and self.end_point:
+            if self.start_point is not None and self.end_point is not None:
                 break
 
-        if not self.start_point:
+        if self.start_point is None:
+            print('no new start')
             self.start_point = (0, 0)
 
-        if not self.end_point:
+        if self.end_point is None:
+            print('no new end')
             self.end_point = (
                 self.env_grid.shape[0] - 1, self.env_grid.shape[1] - 1)
 
-        self.open_close_map = np.full(self.env_grid.shape, np.NaN)
-        self.open_close_map[self.start_point[0]][self.start_point[1]] = 1
-        self.came_from = np.full(self.env_grid.shape, np.NaN)
+    def reconstruct_path(self, current=None, came_from: np.array = None) -> List[Tuple[int]]:
+        # print(f"came_from: \n{self.came_from}\n\n")
+        if current is None:
+            current = self.end_point
 
-        self.g_score = np.full(env.shape, np.inf)
-        self.g_score[self.start_point[0]][self.start_point[1]] = 0
+        if came_from is None:
+            came_from = self.came_from
 
-        self.f_score = np.full(env.shape, np.inf)
-        self.f_score[self.start_point[0]][self.start_point] = self.h_func(
-            self.start_point, self.end_point)
+        path = [current]
+        for _ in range(self.env_grid.size):
+            # print(f"i: {current[0]}, j: {current[1]}")
+            # print(f'came_from_val: {self.came_from[current[0]][current[1]]}')
+            current = np.unravel_index(
+                self.came_from[current[0]][current[1]], self.env_grid.shape)
+            # print(f'new_current: {current}')
+            path.append(current)
 
-    def reconstruct_path(self) -> List[Tuple[int]]:
-        pass
+            if current == self.start_point:
+                break
+
+        return path
 
     def step(self) -> np.array:
-        current = np.unravel_indexed(
-            np.argmax(self.f_score[self.open_close_map == 1]), self.env_grid.shape)
+        # print("----------------------------------------------------------------")
+        masked_arr = self.f_score.copy()
+        masked_arr[self.open_close_map != 1] = np.Inf
+        current = np.unravel_index(
+            np.argmin(masked_arr), self.env_grid.shape)
 
-        if current == self.goal:
-            return self.reconstruct_path()
+        # print(f'\nCurrent: {current}\n\n')
+        # print(f'Mask: \n\n{self.open_close_map == 1}\n\n\n')
+        # print(
+        #     f'Masked: \n\n{masked_arr}\n\n\n')
+
+        if current == self.end_point:
+            path = self.reconstruct_path()
+            output = self.open_close_map.copy()
+
+            for i, j in path:
+                output[i][j] = 4
+
+            return output
 
         self.open_close_map[current[0]][current[1]] = -1
 
-        for i in range(-1, 1):
-            for j in range(-1, 1):
+        for i in range(-1, 2):
+            for j in range(-1, 2):
+                neighbor = (current[0] + i, current[1] + j)
 
-                if i == 0 and j == 0:
+                if (i == 0 and j == 0) or (
+                        neighbor[0] < 0 or neighbor[1] < 0 or
+                        neighbor[0] > self.env_grid.shape[0] - 1 or
+                        neighbor[1] > self.env_grid.shape[1] - 1) or (
+                        self.env_grid[neighbor[0]][neighbor[1]] == -1):
                     continue
 
                 neighbor = (current[0] + i, current[1] + j)
-                grid_dist = 1 if i == 0 and j == 0 else np.sqrt(2)
+                grid_dist = 1 if i == 0 or j == 0 else np.sqrt(2)
                 temp_g = self.g_score[current[0]][current[1]] + grid_dist
 
                 if temp_g < self.g_score[neighbor[0]][neighbor[1]]:
-                    self.came_from = np.ravel_multi_index(
+                    self.came_from[neighbor[0]][neighbor[1]] = np.ravel_multi_index(
                         current, self.env_grid.shape)
 
                     self.g_score[neighbor[0]][neighbor[1]] = temp_g
@@ -86,47 +130,27 @@ class AStar():
 
                     self.open_close_map[neighbor[0]][neighbor[1]] = 1
 
+        # print(f'open_close_map: \n\n{self.open_close_map}\n\n\n')
+        # print(f'f_score       : \n\n{self.f_score}\n\n\n')
+        # print(f'g_score       : \n\n{self.g_score}\n\n\n')
+
         return self.open_close_map
 
-    def solve(self) -> List[Tuple[int]]:
-        pass
+    def solve(self, disp_env=None) -> List[Tuple[int]]:
+        while np.any(self.open_close_map == 1):
+            step_grid = self.step()
+            print(step_grid)
+            print("\n\n")
+            if disp_env is not None:
+                disp_env.overlay_grid = step_grid
+            else:
+                # print(step_grid)
+                # print()
+                pass
 
-    # def gen_heuristic_grid(self, env_grid: np.array = None, heuristic_function=None,
-    #                        start_point: Tuple[int] = None, end_point: Tuple[int] = None) -> np.array:
-    #     """
-    #     Generates the "cost" in order to make an educated guess, in this case a simple distance formula
-    #     """
-
-    #     if env_grid == None:
-    #         env_grid = self.env_grid
-
-    #     if heuristic_function == None:
-    #         heuristic_function = self.heuristic_func
-
-    #     if start_point == None:
-    #         start_point = self.start_point
-
-    #     if end_point == None:
-    #         end_point = self.end_point
-
-    #     print(f'Start: {start_point}, End: {end_point}')
-
-    #     h_grid = np.zeros(env_grid.shape, float)
-
-    #     for row in range(env_grid.shape[0]):
-    #         for col in range(env_grid.shape[1]):
-    #             if env_grid[row][col] == -1:
-    #                 # If the position is an obstacle in the environment assign it a value of INF
-    #                 h_grid[row][col] = MAX_FLOAT32
-    #             else:
-    #                 # If not an obstacle calulate the distance to node
-    #                 h_grid[row][col] = heuristic_function(row, col, end_point)
-
-    #     return h_grid
+            time.sleep(0.125)
 
 
 if __name__ == "__main__":
-    env = BasicGridEnv(num_rows=5, num_cols=5, obstacle_density=0)
-    a_star = AStar(env.grid, h_dist)
-
-    print(a_star.gen_heuristic_grid())
+    a_star = AStar(np.zeros((5, 5)))
+    a_star.solve()
