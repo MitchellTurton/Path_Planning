@@ -3,8 +3,6 @@ import numpy as np
 import time
 from typing import List, Tuple
 
-# Heuristic Functions
-
 
 def euclidian_dist(start_point: Tuple[int], end_point: Tuple[int]) -> float:
     """
@@ -90,7 +88,7 @@ class AStar():
 
         return self.open_close_set
 
-    def step(self) -> np.array:  # Returns an np.array of the current closed and open set
+    def step(self) -> (np.array, bool):  # Returns an np.array of the current closed and open set
         """
         Perform one step of the A* algorithm.
 
@@ -109,19 +107,23 @@ class AStar():
             output = self.open_close_set.copy()
 
             for pos in path:
-                output[pos] = 4
+                output[pos] = 5
 
             return output, True
 
-        self.open_close_set[current] = -1
+        if not np.any(self.open_close_set == 1):
+            return self.open_close_set, True
+
+        self.open_close_set[current] = 2
 
         for i in range(-1, 2):
             for j in range(-1, 2):
                 neighbor = (current[0] + i, current[1] + j)
 
                 if (i == 0 and j == 0) or (
-                    neighbor[0] < 0 or neighbor[1] < 0 or
-                    neighbor[0] >= self.env_grid.shape[0] or
+                    (neighbor[0] < 0 or neighbor[1] < 0 or
+                     neighbor[0] >= self.env_grid.shape[0] or
+                     neighbor[1] >= self.env_grid.shape[1]) or
                     self.env_grid[neighbor] == -1
                 ):
                     continue

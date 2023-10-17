@@ -11,10 +11,11 @@ pygame.init()
 # Color Constants
 WHITE = (255, 255, 255)
 BLACK = (0, 0, 0)
-RED = (196, 39, 0)
+RED = (240, 80, 80)
 GREEN = (0, 196, 39)
 BLUE = (0, 157, 196)
 ORANGE = (255, 165, 0)
+PURPLE = (150, 55, 230)
 
 # Grid Square Types
 EMPTY_SQUARE = 0
@@ -23,6 +24,7 @@ OPEN_SET = 1
 CLOSED_SET = 2
 START = 3
 GOAL = 4
+PATH = 5
 
 # Dictionary that maps grid type to color to display in environment
 COLOR_DICT = {EMPTY_SQUARE: WHITE,
@@ -30,10 +32,11 @@ COLOR_DICT = {EMPTY_SQUARE: WHITE,
               OPEN_SET: GREEN,
               CLOSED_SET: RED,
               START: BLUE,
-              GOAL: ORANGE
+              GOAL: ORANGE,
+              PATH: PURPLE
               }
 
-FPS = 100
+FPS = 1500
 
 
 class BasicGridEnv():
@@ -67,9 +70,9 @@ class BasicGridEnv():
         self.square_width: int = win_width // num_cols
         self.square_height: int = win_height // num_rows
 
-        self.run_sim = True
+        self.is_sim_complete = False
         self.mouse_down = False
-        self.is_path_planning = False
+        self.run = True
 
     def generate_random_grid(self, num_rows: int, num_cols: int, obstacle_density: float = None) -> np.array:
         """
@@ -79,8 +82,30 @@ class BasicGridEnv():
         if obstacle_density is None:
             obstacle_density = self.obstacle_density
 
-        return np.random.choice([EMPTY_SQUARE, OBSTACLE], size=(num_rows, num_cols),
-                                p=(1-obstacle_density, obstacle_density))
+        grid = np.random.choice([EMPTY_SQUARE, OBSTACLE], size=(
+            num_rows, num_cols), p=(1-obstacle_density, obstacle_density))
+
+        # grid[(0, 0)] = EMPTY_SQUARE
+        # grid[(-1, -1)] = EMPTY_SQUARE
+
+        start_pos = (np.random.randint(
+            0, grid.shape[0]), np.random.randint(0, grid.shape[1]))
+        while True:
+            end_pos = (np.random.randint(
+                0, grid.shape[0]), np.random.randint(0, grid.shape[1]))
+            if start_pos[0] != end_pos[0] or start_pos[1] != end_pos[1]:
+                break
+
+        grid[start_pos] = START
+        grid[end_pos] = GOAL
+
+        return grid
+
+    def reset(self):
+        self.grid = self.generate_random_grid(
+            self.grid.shape[0], self.grid.shape[1])
+
+        self.path_planner = None
 
     def event_handler(self) -> None:
         """
@@ -89,7 +114,7 @@ class BasicGridEnv():
 
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
-                self.run_sim = False
+                self.run = False
 
             if event.type == pygame.MOUSEBUTTONDOWN:
                 self.mouse_down = True
@@ -107,7 +132,7 @@ class BasicGridEnv():
         Handles key press events.
         """
 
-        keys = pygame.ket.get_pressed()
+        keys = pygame.key.get_pressed()
 
         if keys[pygame.K_SPACE]:
             self.edit_square_type = OBSTACLE if self.edit_square_type == EMPTY_SQUARE else EMPTY_SQUARE
@@ -115,12 +140,11 @@ class BasicGridEnv():
             self.edit_square_type = START
         if keys[pygame.K_2]:
             self.edit_square_type = GOAL
-        if keys[pygame.K_KP_ENTER]:
-            self.is_path_planning = True
+        if keys[pygame.K_TAB]:
             self.path_planner = AStar(self.grid)
 
         if keys[pygame.K_r]:
-            self.generate_random_grid(self.grid.shape[0], self.grid.shape[1])
+            self.reset()
 
     def mouse_handler(self):
         """
@@ -128,12 +152,12 @@ class BasicGridEnv():
         """
 
         mouse_pos: Tuple[int] = pygame.mouse.get_pos()
-        grid_pos: Tuple[int] = (np.floor(mouse_pos[0] / self.square_width),
-                                np.floor(mouse_pos[1] / self.square_height))
+        grid_pos: Tuple[int] = (int(np.floor(mouse_pos[0] / self.square_width)),
+                                int(np.floor(mouse_pos[1] / self.square_height)))
 
-        self.grid[grid_pos] = self.editor_square_type
+        self.grid[grid_pos] = self.edit_square_type
 
-    def draw(self) -> None:
+    def draw(self, overlay_grid: np.array = None) -> None:
         """
         Renders the grid on the pygame surface.
         """
@@ -142,7 +166,10 @@ class BasicGridEnv():
 
         for row in range(self.grid.shape[0]):
             for col in range(self.grid.shape[1]):
-                square_color = COLOR_DICT[self.grid[row][col]]
+                if overlay_grid is not None and self.grid[row][col] == EMPTY_SQUARE and overlay_grid[row][col] > 0:
+                    square_color = COLOR_DICT[overlay_grid[row][col]]
+                else:
+                    square_color = COLOR_DICT[self.grid[row][col]]
                 square_params = (row * self.square_height, col * self.square_width,
                                  self.square_height, self.square_width)
 
@@ -160,4 +187,15 @@ class BasicGridEnv():
 
         self.event_handler()
 
-        output = self.path_planner.step()  # TODO: Think on this interface more
+        overlay_grid = None
+        if self.path_planner is not None:
+            overlay_grid, self.is_sim_complete = self.path_planner.step()
+
+        self.draw(overlay_grid)
+
+
+if __name__ == '__main__':
+    env = BasicGridEnv("Grid", 1000, 1000, 50, 50, 0.2)
+
+    while env.run:
+        env.update()
