@@ -9,13 +9,14 @@ from typing import Tuple
 pygame.init()
 
 # Color Constants
-WHITE = (255, 255, 255)
-BLACK = (0, 0, 0)
-RED = (240, 80, 80)
-GREEN = (0, 196, 39)
+WHITE = (75, 75, 75)
+BLACK = (30, 30, 35)
+RED = (220, 80, 80)
+GREEN = (0, 175, 39)
 BLUE = (0, 157, 196)
 ORANGE = (255, 165, 0)
-PURPLE = (150, 55, 230)
+# PURPLE = (150, 55, 230)
+PURPLE = (0, 84, 170)
 
 # Grid Square Types
 EMPTY_SQUARE = 0
@@ -191,11 +192,12 @@ class BasicGridEnv():
         if self.path_planner is not None:
             overlay_grid, self.is_sim_complete = self.path_planner.step()
 
-        self.draw(overlay_grid)
+        if self.is_sim_complete:
+            self.draw(overlay_grid)
 
 
 if __name__ == '__main__':
-    env = BasicGridEnv("Grid", 1000, 1000, 50, 50, 0.2)
+    env = BasicGridEnv("Grid", 1000, 1000, 50, 50, 0.5)
 
     while env.run:
         env.update()
